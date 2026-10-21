@@ -13,3 +13,10 @@ pyqt = "*"
 dask = "*"
 tifffile = "*"
 numpy = "*"
+jupyterlab = "*"
+pandas = "*"
+# matplotlib-base and seaborn-base: the full metapackages pull in another Qt binding
+matplotlib-base = "*"
+seaborn-base = "*"
+# git filter that strips notebook outputs from commits (see README)
+nbstripout = "*"

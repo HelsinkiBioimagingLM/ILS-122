@@ -4,3 +4,9 @@
 
 # Python bytecode
 __pycache__/
+
+# CellProfiler measurements (too large for git)
+CellProfiler/*.csv
+
+# Jupyter
+.ipynb_checkpoints/

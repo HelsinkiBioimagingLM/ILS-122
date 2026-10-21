@@ -2,12 +2,29 @@
 
 ## Environment
 
-The environment for `view_positions.py` (napari) is defined in `pixi.toml`
+The environment for `view_positions.py` (napari) and the notebooks is defined in `pixi.toml`
 and locked in `pixi.lock`, for Linux and Windows. With pixi:
 
 ```bash
 pixi shell
 python scripts/view_positions.py --input_dir ... --labels_dir ...
+```
+
+The notebook `notebooks/per_well_measurements.ipynb` shows per-well averages
+and plate heatmaps of the CellProfiler measurements in `CellProfiler/` with
+pandas. Start JupyterLab with:
+
+```bash
+pixi run jupyter lab
+```
+
+Notebook outputs are stripped from commits by the
+[nbstripout](https://github.com/kynan/nbstripout) git filter (set in
+`.gitattributes`); your own copy keeps them. The filter has to be set up once
+per clone:
+
+```bash
+pixi run nbstripout --install
 ```
 
 ### Without pixi (Anaconda / Miniconda)
