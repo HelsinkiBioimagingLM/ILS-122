@@ -1,0 +1,15 @@
+[workspace]
+authors = ["Harri Jäälinoja <harri.jaalinoja@helsinki.fi>"]
+channels = ["conda-forge"]
+name = "ILS-122"
+platforms = ["linux-64", "win-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+napari = ">=0.9.2,<0.10"
+pyqt = "*"
+dask = "*"
+tifffile = "*"
+numpy = "*"
