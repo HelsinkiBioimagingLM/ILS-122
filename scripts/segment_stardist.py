@@ -17,7 +17,7 @@ non-maximum suppression) are divided between the workers.
 
 Run in the stardist env of microscopy-ai-envs:
     pixi run --manifest-path ../microscopy-ai-envs/pixi.toml -e stardist \\
-        python segment_stardist.py --input_dir /path/to/data --output_dir /path/to/results --n_workers 4
+        python scripts/segment_stardist.py --input_dir /path/to/data --output_dir /path/to/results --n_workers 4
 """
 import argparse
 import csv

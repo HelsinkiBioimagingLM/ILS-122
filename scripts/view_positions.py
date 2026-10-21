@@ -16,9 +16,9 @@ shown as a labels layer, looked up from the same relative subfolder in --labels_
 labels layer per folder.
 
 Usage:
-    python view_positions.py --input_dir /path/to/data/20261008
-    python view_positions.py --input_dir /path/to/data/20261008 --labels_dir /path/to/results/20261008
-    python view_positions.py --input_dir /path/to/data/20261008 \
+    python scripts/view_positions.py --input_dir /path/to/data/20261008
+    python scripts/view_positions.py --input_dir /path/to/data/20261008 --labels_dir /path/to/results/20261008
+    python scripts/view_positions.py --input_dir /path/to/data/20261008 \
         --labels_dir /path/to/results_a/20261008 /path/to/results_b/20261008
 """
 import argparse

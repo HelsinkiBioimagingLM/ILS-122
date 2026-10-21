@@ -19,7 +19,7 @@ the workers.
 
 Run in the cellpose3 env of microscopy-ai-envs:
     pixi run --manifest-path ../microscopy-ai-envs/pixi.toml -e cellpose3 \\
-        python segment_cellpose.py --input_dir /path/to/data --output_dir /path/to/results --diameter 60 --n_workers 2
+        python scripts/segment_cellpose.py --input_dir /path/to/data --output_dir /path/to/results --diameter 60 --n_workers 2
 """
 import argparse
 import csv
