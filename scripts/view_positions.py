@@ -11,8 +11,10 @@ Runs can have different numbers of positions and channels: channels are
 matched by name, and missing positions or channels are shown as empty images.
 
 Optionally, label images are shown as a labels layer, looked up from the same
-relative subfolder in --labels_dir, or from --labels_dir itself if it doesn't
-have that subfolder. A label file belongs to a position if its name starts
+relative subfolder in --labels_dir, or from a folder under --labels_dir
+ending with (the end of) that subfolder, so that --input_dir and --labels_dir
+can be given at different depths, or from --labels_dir itself (when all label
+images are in one folder, as written by CellProfiler). A label file belongs to a position if its name starts
 with the position name or the name of one of its image files, followed by "_"
 and any suffix: e.g. plate1_A01_s1_seg.tif from segment_stardist.py and
 segment_cellpose.py, or plate1_A01_s1_w1<GUID>_cell_labels.tiff from
@@ -178,6 +180,23 @@ def find_label_file(pos, files, suffix):
     return matches[0] if matches else None
 
 
+def find_label_dir(labels_dir, run_rel, run_name):
+    """Folder with the label images of a run: the folder under labels_dir (or labels_dir/run_rel itself)
+    whose path ends with the longest possible tail of run_rel, or with the run folder name, so that
+    --input_dir and --labels_dir can be given at different depths; else labels_dir itself (e.g.
+    CellProfiler writes all label images into one folder)."""
+    parts = run_rel.parts or (run_name,)
+    for k in range(len(parts)):
+        tail = "/".join(parts[k:])
+        matches = [d for d in labels_dir.rglob(tail) if d.is_dir()]   # includes labels_dir/tail
+        if len(matches) > 1:
+            raise SystemExit(f"Several label folders for run {run_rel} under {labels_dir}: "
+                             f"{', '.join(str(d) for d in matches)}\nGive the right one as --labels_dir")
+        if matches:
+            return matches[0]
+    return labels_dir
+
+
 def build_label_stack(labels_dir, input_dir, runs, n_pos, shape_yx, suffix):
     """Lazily stack the label images of all runs into (R, P, Y, X), matching build_stacks.
 
@@ -186,9 +205,7 @@ def build_label_stack(labels_dir, input_dir, runs, n_pos, shape_yx, suffix):
     read_labels = dask.delayed(read_labels_padded)
     label_runs, n_labels = [], []
     for r in runs:
-        label_dir = labels_dir / r.folder.relative_to(input_dir)
-        if not label_dir.is_dir():
-            label_dir = labels_dir   # e.g. CellProfiler writes all label images into one folder
+        label_dir = find_label_dir(labels_dir, r.folder.relative_to(input_dir), r.folder.name)
         files = [f for f in label_dir.iterdir() if f.suffix.lower() in (".tif", ".tiff")]
         label_files = [find_label_file(pos, files, suffix) for pos in r.positions]
         n_labels.append(sum(f is not None for f in label_files))
