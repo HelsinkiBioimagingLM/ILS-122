@@ -26,6 +26,7 @@ Position.name is unique within the run and is used for output file names
 for all channels in OME-TIFF, None for a missing MetaXpress image). well
 (e.g. "B01"), site and timepoint (both from 1) are only set for MetaXpress.
 """
+import argparse
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -212,6 +213,18 @@ def open_run(folder):
         if fmt.is_run(folder):
             return fmt(folder)
     return None
+
+
+def existing_dir(arg):
+    """argparse type: a folder that exists, as a Path."""
+    path = Path(arg)
+    if path.is_dir():
+        return path
+    msg = f"folder not found: {arg}"
+    if arg.endswith('"'):
+        # Windows: in "C:\some folder\" the backslash escapes the closing quote, which ends up in the argument
+        msg += ' (remove the trailing backslash: "C:\\some folder", not "C:\\some folder\\")'
+    raise argparse.ArgumentTypeError(msg)
 
 
 def find_runs(input_dir):

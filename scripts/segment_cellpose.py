@@ -35,7 +35,7 @@ import torch
 
 from cellpose import models
 
-from formats import find_runs
+from formats import existing_dir, find_runs
 
 # Cellpose channel numbers: 1 = red, 3 = blue
 CELLPOSE_CHANNELS = [1, 3]
@@ -112,7 +112,7 @@ def segment_one(task):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--input_dir", type=Path, required=True)
+    parser.add_argument("--input_dir", type=existing_dir, required=True)
     parser.add_argument("--output_dir", type=Path, required=True)
     parser.add_argument("--channel", default="TEXASRED",
                         help="cell marker channel, shown as red: name from the metadata or an index (default: TEXASRED, i.e. _w3)")

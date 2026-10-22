@@ -32,7 +32,7 @@ import napari
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QGridLayout, QLabel, QSlider, QWidget
 
-from formats import find_runs
+from formats import existing_dir, find_runs
 
 DEFAULT_COLORMAPS = ["cyan", "green", "red", "magenta", "yellow", "gray"]
 # Colormap by (case-insensitive) substring of the channel name; others get DEFAULT_COLORMAPS
@@ -188,9 +188,9 @@ def layer_names(dirs):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--input_dir", type=Path, required=True,
+    parser.add_argument("--input_dir", type=existing_dir, required=True,
                         help="folder with imaging run subfolders (or a single run folder)")
-    parser.add_argument("--labels_dir", type=Path, nargs="+", action="extend", default=[],
+    parser.add_argument("--labels_dir", type=existing_dir, nargs="+", action="extend", default=[],
                         help="segmentation output folder(s) with the same subfolder structure; "
                              "each is shown as its own labels layer")
     args = parser.parse_args()

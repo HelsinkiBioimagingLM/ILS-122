@@ -31,6 +31,8 @@ from pathlib import Path
 import numpy as np
 import tifffile
 
+from formats import existing_dir
+
 # <plate>_<well>_s<site>_w<W> followed by an optional 36-character GUID
 NAME_RE = re.compile(r"^(?P<name>.+)_w(?P<w>\d)(?P<guid>[0-9A-Fa-f-]{36})?\.tiff?$")
 
@@ -104,7 +106,7 @@ def segment_one(task):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--input_dir", type=Path, required=True)
+    parser.add_argument("--input_dir", type=existing_dir, required=True)
     parser.add_argument("--output_dir", type=Path, required=True)
     parser.add_argument("--wavelength", type=int, default=1, help="wavelength to segment, the W in _w<W> (default: 1)")
     parser.add_argument("--model", default="2D_versatile_fluo", help="pretrained StarDist model (default: 2D_versatile_fluo)")
