@@ -10,18 +10,26 @@ has sliders for well, site and timepoint, kept in sync with the position slider.
 Runs can have different numbers of positions and channels: channels are
 matched by name, and missing positions or channels are shown as empty images.
 
-Optionally, label images from segment_folder.py (<position name>_seg.tif) are
-shown as a labels layer, looked up from the same relative subfolder in --labels_dir.
---labels_dir can list several folders (e.g. to compare models), giving one
-labels layer per folder.
+Optionally, label images are shown as a labels layer, looked up from the same
+relative subfolder in --labels_dir, or from --labels_dir itself if it doesn't
+have that subfolder. A label file belongs to a position if its name starts
+with the position name or the name of one of its image files, followed by "_"
+and any suffix: e.g. plate1_A01_s1_seg.tif from segment_stardist.py and
+segment_cellpose.py, or plate1_A01_s1_w1<GUID>_cell_labels.tiff from
+CellProfiler. If a folder has several label files per position (e.g. cells and
+nuclei), choose one with --labels_suffix. --labels_dir can list several
+folders (e.g. to compare models), giving one labels layer per folder.
 
 Usage:
     python scripts/view_positions.py --input_dir /path/to/data/20261008
     python scripts/view_positions.py --input_dir /path/to/data/20261008 --labels_dir /path/to/results/20261008
     python scripts/view_positions.py --input_dir /path/to/data/20261008 \
         --labels_dir /path/to/results_a/20261008 /path/to/results_b/20261008
+    python scripts/view_positions.py --input_dir /path/to/data/plate1 \
+        --labels_dir /path/to/cellprofiler/labels --labels_suffix _cell_labels.tiff
 """
 import argparse
+import re
 from pathlib import Path
 
 import dask
@@ -158,7 +166,19 @@ def build_stacks(input_dir):
     return da.stack(image_runs), runs, channel_names
 
 
-def build_label_stack(labels_dir, input_dir, runs, n_pos, shape_yx):
+def find_label_file(pos, files, suffix):
+    """The label file of a position, or None: its name starts with the position name or an image file
+    name, followed by "_" (so that _s1_ doesn't match _s10_), and ends with suffix."""
+    prefixes = {pos.name} | {re.sub(r"\.ome$", "", f.stem) for f in pos.files if f is not None}
+    matches = sorted({f for f in files for p in prefixes
+                      if f.name.startswith(p + "_") and f.name.endswith(suffix)})
+    if len(matches) > 1:
+        raise SystemExit(f"Several label files for position {pos.name} in {matches[0].parent}: "
+                         f"{', '.join(f.name for f in matches)}\nChoose one with --labels_suffix")
+    return matches[0] if matches else None
+
+
+def build_label_stack(labels_dir, input_dir, runs, n_pos, shape_yx, suffix):
     """Lazily stack the label images of all runs into (R, P, Y, X), matching build_stacks.
 
     Also returns the number of label images found per run.
@@ -167,10 +187,13 @@ def build_label_stack(labels_dir, input_dir, runs, n_pos, shape_yx):
     label_runs, n_labels = [], []
     for r in runs:
         label_dir = labels_dir / r.folder.relative_to(input_dir)
-        label_files = [label_dir / f"{pos.name}_seg.tif" for pos in r.positions]
-        n_labels.append(sum(f.exists() for f in label_files))
+        if not label_dir.is_dir():
+            label_dir = labels_dir   # e.g. CellProfiler writes all label images into one folder
+        files = [f for f in label_dir.iterdir() if f.suffix.lower() in (".tif", ".tiff")]
+        label_files = [find_label_file(pos, files, suffix) for pos in r.positions]
+        n_labels.append(sum(f is not None for f in label_files))
         planes = [da.from_delayed(read_labels(f, shape_yx), shape=shape_yx, dtype=np.uint32)
-                  if f.exists() else da.zeros(shape_yx, dtype=np.uint32)
+                  if f is not None else da.zeros(shape_yx, dtype=np.uint32)
                   for f in label_files]
         planes += [da.zeros(shape_yx, dtype=np.uint32)] * (n_pos - len(planes))
         label_runs.append(da.stack(planes))
@@ -191,13 +214,16 @@ def main():
     parser.add_argument("--input_dir", type=existing_dir, required=True,
                         help="folder with imaging run subfolders (or a single run folder)")
     parser.add_argument("--labels_dir", type=existing_dir, nargs="+", action="extend", default=[],
-                        help="segmentation output folder(s) with the same subfolder structure; "
+                        help="segmentation output folder(s), with the same subfolder structure or all label images in one folder; "
                              "each is shown as its own labels layer")
+    parser.add_argument("--labels_suffix", default="",
+                        help="only use label files ending with this, e.g. _cell_labels.tiff (default: any)")
     args = parser.parse_args()
 
     images, runs, channel_names = build_stacks(args.input_dir)
     names = layer_names(args.labels_dir) if args.labels_dir else []
-    labels = {name: build_label_stack(d, args.input_dir, runs, images.shape[1], images.shape[-2:])
+    labels = {name: build_label_stack(d, args.input_dir, runs, images.shape[1], images.shape[-2:],
+                                       args.labels_suffix)
               for name, d in zip(names, args.labels_dir)}
 
     print(f"Stack shape (run, position, C, Y, X) = {images.shape}, channels: {channel_names}")
