@@ -35,20 +35,10 @@ import torch
 
 from cellpose import models
 
-from formats import existing_dir, find_runs
+from formats import existing_dir, find_runs, resolve_channel
 
 # Cellpose channel numbers: 1 = red, 3 = blue
 CELLPOSE_CHANNELS = [1, 3]
-
-
-def resolve_channel(channel, run):
-    """Channel index from an index ("1") or a channel name ("DAPI"), None if the run doesn't have it."""
-    if channel.isdigit():
-        idx = int(channel)
-        return idx if idx < len(run.channel_names) else None
-    if channel in run.channel_names:
-        return run.channel_names.index(channel)
-    return None
 
 
 def composite(run, pos, c_main, c_helper):
@@ -115,9 +105,10 @@ def main():
     parser.add_argument("--input_dir", type=existing_dir, required=True)
     parser.add_argument("--output_dir", type=Path, required=True)
     parser.add_argument("--channel", default="TEXASRED",
-                        help="cell marker channel, shown as red: name from the metadata or an index (default: TEXASRED, i.e. _w3)")
+                        help="cell marker channel, shown as red: name from the metadata (case and spaces ignored) "
+                             "or an index from 0 (default: TEXASRED, i.e. _w3)")
     parser.add_argument("--helper_channel", default="DAPI",
-                        help="nuclear helper channel, shown as blue: name or index (default: DAPI, i.e. _w1)")
+                        help="nuclear helper channel, shown as blue: name or index from 0 (default: DAPI, i.e. _w1)")
     parser.add_argument("--diameter", type=float, default=30,
                         help="expected cell diameter in pixels; 0 estimates it per image (default: 30)")
     parser.add_argument("--model_type", default="cyto3", help="pretrained Cellpose model (default: cyto3)")

@@ -1,11 +1,13 @@
-"""Batch StarDist nucleus segmentation of MetaXpress (ImageXpress) images.
+"""Batch StarDist nucleus segmentation.
 
-Finds all single-channel TIFFs of one wavelength under --input_dir
-(recursively), named <plate>_<well>_s<site>_w<W>[<GUID>].tif (thumbnails
-are skipped), segments them with a StarDist 2D model and writes label images
-to --output_dir, reproducing the subfolder structure:
+Finds all runs under --input_dir (recursively), in any format supported by
+formats.py (newer MetaXpress with a .xdce file, older MetaXpress without it,
+OME-TIFF), segments the nuclear channel (--channel) of every position with a
+StarDist 2D model and writes label images to --output_dir, reproducing the
+subfolder structure:
 
-    <input_dir>/<sub>/plate1_A03_s3_w1<GUID>.tif  ->  <output_dir>/<sub>/plate1_A03_s3_seg.tif
+    <input_dir>/<run>/t1_B02_s1_w1_z1.tif         ->  <output_dir>/<run>/t1_B02_s1_z1_seg.tif
+    <input_dir>/<run>/plate1_A03_s3_w1<GUID>.tif  ->  <output_dir>/<run>/plate1_A03_s3_seg.tif
 
 A summary CSV with the object count per image is written to
 <output_dir>/segmentation_summary.csv.
@@ -23,7 +25,6 @@ import argparse
 import csv
 import multiprocessing as mp
 import os
-import re
 import time
 import traceback
 from pathlib import Path
@@ -31,20 +32,7 @@ from pathlib import Path
 import numpy as np
 import tifffile
 
-from formats import existing_dir
-
-# <plate>_<well>_s<site>_w<W> followed by an optional 36-character GUID
-NAME_RE = re.compile(r"^(?P<name>.+)_w(?P<w>\d)(?P<guid>[0-9A-Fa-f-]{36})?\.tiff?$")
-
-
-def find_images(input_dir, wavelength):
-    """(file, position name) of all images of the wavelength, sorted by path."""
-    images = []
-    for f in sorted(input_dir.rglob("*.tif*")):
-        m = NAME_RE.match(f.name)
-        if m and m["w"] == str(wavelength):
-            images.append((f, m["name"]))
-    return images
+from formats import existing_dir, find_runs, resolve_channel
 
 
 def summary_row(f, out, n_objects, args):
@@ -91,10 +79,10 @@ def segment_one(task):
     """Segment one image and write the labels. Returns (task, n_objects, error)."""
     if _init_error:
         return task, None, _init_error
-    f, out, p_low, p_high = task[1:]
+    run, pos, c, out, p_low, p_high = task[1:]
     try:
         from csbdeep.utils import normalize
-        img = normalize(tifffile.imread(f), p_low, p_high, axis=(0, 1))
+        img = normalize(run.read(pos, [c])[0], p_low, p_high, axis=(0, 1))
         labels, _ = _model.predict_instances(img, **_predict_kwargs)
         labels = labels.astype(np.uint32)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -108,7 +96,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input_dir", type=existing_dir, required=True)
     parser.add_argument("--output_dir", type=Path, required=True)
-    parser.add_argument("--wavelength", type=int, default=1, help="wavelength to segment, the W in _w<W> (default: 1)")
+    parser.add_argument("--channel", default="DAPI",
+                        help="nuclear channel: name from the metadata (case and spaces ignored) "
+                             "or an index from 0 (default: DAPI, i.e. _w1)")
     parser.add_argument("--model", default="2D_versatile_fluo", help="pretrained StarDist model (default: 2D_versatile_fluo)")
     parser.add_argument("--model_dir", type=Path, help="own trained model folder (overrides --model)")
     parser.add_argument("--prob_thresh", type=float, help="probability threshold (default: the model's)")
@@ -121,11 +111,11 @@ def main():
                         help="number of parallel worker processes, each with its own model (default: 1)")
     args = parser.parse_args()
 
-    images = find_images(args.input_dir, args.wavelength)
-    if not images:
-        raise SystemExit(f"No _w{args.wavelength} images found under {args.input_dir}")
-    n_total = len(images)
-    print(f"Found {n_total} _w{args.wavelength} images under {args.input_dir}")
+    runs = find_runs(args.input_dir)
+    if not runs:
+        raise SystemExit(f"No runs found under {args.input_dir}")
+    n_total = sum(len(r.positions) for r in runs)
+    print(f"Found {len(runs)} runs with {n_total} positions under {args.input_dir}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = args.output_dir / "segmentation_summary.csv"
@@ -133,13 +123,28 @@ def main():
 
     # Collect the images to segment; existing results are only counted
     tasks = []
-    for i, (f, name) in enumerate(images, 1):
-        out = args.output_dir / f.parent.relative_to(args.input_dir) / f"{name}_seg.tif"
-        if out.exists() and not args.overwrite:
-            print(f"[{i}/{n_total}] skip (exists): {f.relative_to(args.input_dir)}")
-            rows[i] = summary_row(f, out, int(tifffile.imread(out).max()), args)
-        else:
-            tasks.append((i, f, out, args.p_low, args.p_high))
+    i = 0
+    for run in runs:
+        run_rel = run.folder.relative_to(args.input_dir)
+        print(f"{run_rel} ({run.format}, channels: {', '.join(run.channel_names)})")
+        c = resolve_channel(args.channel, run)
+        if c is None:
+            print(f"  skip run (no channel {args.channel!r})")
+            i += len(run.positions)
+            continue
+
+        for pos in run.positions:
+            i += 1
+            f = pos.files[c]
+            if f is None:
+                print(f"[{i}/{n_total}] skip (no {run.channel_names[c]} image): {run_rel / pos.name}")
+                continue
+            out = args.output_dir / run_rel / f"{pos.name}_seg.tif"
+            if out.exists() and not args.overwrite:
+                print(f"[{i}/{n_total}] skip (exists): {f.relative_to(args.input_dir)}")
+                rows[i] = summary_row(f, out, int(tifffile.imread(out).max()), args)
+            else:
+                tasks.append((i, run, pos, c, out, args.p_low, args.p_high))
 
     if tasks:
         import tensorflow as tf
@@ -166,7 +171,8 @@ def main():
         start = time.time()
         try:
             for k, (task, n_objects, error) in enumerate(results, 1):
-                idx, f, out = task[:3]
+                idx, run, pos, c, out = task[:5]
+                f = pos.files[c]
                 rel = f.relative_to(args.input_dir)
                 if error:
                     n_failed += 1

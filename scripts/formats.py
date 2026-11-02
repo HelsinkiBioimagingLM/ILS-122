@@ -215,6 +215,25 @@ def open_run(folder):
     return None
 
 
+def _normalize_name(name):
+    """Channel name for matching: lower case without spaces or punctuation ("Texas Red" -> "texasred")."""
+    return re.sub(r"[^0-9a-z]", "", name.lower())
+
+
+def resolve_channel(channel, run):
+    """Channel index from an index ("1") or a channel name, None if the run doesn't have it.
+
+    Names match regardless of case, spaces and punctuation, so "TEXASRED"
+    finds "Texas Red" (newer MetaXpress) as well as "TEXASRED" (older).
+    """
+    if channel.isdigit():
+        idx = int(channel)
+        return idx if idx < len(run.channel_names) else None
+    names = [_normalize_name(n) for n in run.channel_names]
+    key = _normalize_name(channel)
+    return names.index(key) if key in names else None
+
+
 def existing_dir(arg):
     """argparse type: a folder that exists, as a Path."""
     path = Path(arg)
