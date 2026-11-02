@@ -50,3 +50,29 @@ To regenerate the lock file locally (needs pixi):
 pixi exec --spec pixi-to-conda-lock --spec pyyaml -- bash -c \
     "pixi-to-conda-lock --output conda-locks pixi.lock && python scripts/normalize-conda-locks.py pixi.lock conda-locks/*conda-lock.yml"
 ```
+
+## Segmentation
+
+`scripts/segment_stardist.py` and `scripts/segment_cellpose.py` run in the
+`stardist` and `cellpose3` environments of
+`microscopy-ai-envs`, which is expected to be cloned
+next to this repository. Helper scripts run them with pixi on the
+"ILS122 2022 Group1" data; edit the data path in the helper before running.
+
+On Linux (bash):
+
+```bash
+bash scripts/segment_stardist.sh
+bash scripts/segment_cellpose.sh
+```
+
+On Windows (PowerShell):
+
+```powershell
+.\scripts\segment_stardist.ps1
+.\scripts\segment_cellpose.ps1
+```
+
+If PowerShell refuses to run local scripts, allow them once with
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or run a helper with
+`powershell -ExecutionPolicy Bypass -File scripts\segment_stardist.ps1`.
